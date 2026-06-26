@@ -6,6 +6,7 @@ generates a simple long-only signal (short SMA > long SMA), and compares the
 strategy performance against buy-and-hold.
 """
 
+import argparse
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -34,12 +35,19 @@ class MABacktester:
             calling `fetch_data()` and `run_backtest()`.
     """
 
-    def __init__(self, ticker, short_window, long_window, period = "1y"):
+    def __init__(self, ticker: str, short_window: int, long_window: int, period: str = "1y") -> None:
+        """
+        Initialize the backtester with ticker, SMA windows, and period.
+        :param ticker: str, ticker symbol (e.g., "AAPL")
+        :param short_window: int, window size for the short SMA
+        :param long_window: int, window size for the long SMA
+        :param period: str, history length string accepted by yfinance (default: "1y")
+        """
+
         self.ticker = ticker
         self.short_window = short_window
         self.long_window = long_window
         self.period = period
-        self.data = None
 
     def fetch_data(self):
         """Download OHLCV data for `self.ticker` into `self.data`.
@@ -111,23 +119,21 @@ class MABacktester:
         plt.show()
 
 if __name__ == "__main__":
-    # Example usage: backtest TSLA with a 10/50 SMA crossover over 1 year
-    best_return = 0
-    best_short = 0
-    best_long = 0
 
-    for short_window in range(5, 21):
-        for long_window in range(30, 61):
+    # 1. Create an argument parser to allow command-line input for ticker, short SMA, long SMA, and period
+    parser = argparse.ArgumentParser(description="Simple Moving Average Backtester")
 
-            tester = MABacktester(ticker="TSLA", short_window=short_window, long_window=long_window)
-            tester.fetch_data()
-            tester.run_backtest()
+    # 2. Define command-line arguments with default values and help descriptions
+    parser.add_argument("--ticker", type = str, default = "APPL", help = "Ticker symbol (default: AAPL)")
+    parser.add_argument("--short", type = int, default = 10, help = "Short SMA window (default: 10)")
+    parser.add_argument("--long", type = int, default = 50, help = "Long SMA window (default: 50)")
 
-            current_return = tester.data['Cumulative_Strategy'].iloc[-1]
+    # 3. Parse the command-line arguments into the `args` namespace
+    args = parser.parse_args()
 
-            if current_return > best_return:
-                best_return = current_return
-                best_short = short_window
-                best_long = long_window
-
-    print(f"Best return: {best_return:.2f} with short SMA = {best_short} and long SMA = {best_long}")
+    # 4. Print the backtest configuration and run the backtester
+    print(f"Running backtest for {args.ticker} with short SMA = {args.short} and long SMA = {args.long}... \n")
+    tester = MABacktester(ticker = args.ticker, short_window = args.short, long_window = args.long)
+    tester.fetch_data()
+    tester.run_backtest()
+    tester.print_performance()
