@@ -1,0 +1,12 @@
+symbol: SPY
+initial_cash: 100000
+timeframe: 1D
+
+strategy:
+  name: ma_crossover
+  fast_window: 20
+  slow_window: 50
+
+costs:
+  commission_per_trade: 1.0
+  slippage_bps: 2
