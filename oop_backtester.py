@@ -56,6 +56,10 @@ class MABacktester:
         """
         print(f"Fetching data for {self.ticker} for the past {self.period}...")
         self.data = yf.download(self.ticker, period=self.period, session=session)
+        if self.data is None or self.data.empty:
+            raise ValueError(
+                f"No price data returned for {self.ticker}. Check the ticker symbol or try a different period."
+            )
 
     def run_backtest(self):
         """Compute indicators, signals, returns, and cumulative performance.
@@ -67,11 +71,19 @@ class MABacktester:
           with a one-day shift to avoid lookahead)
         - Compute cumulative returns for market and strategy
         """
+        if self.data is None or self.data.empty:
+            raise ValueError("No data available. Call fetch_data() successfully before running the backtest.")
+
         # Simple moving averages on the close price
         self.data['SMA_short'] = self.data['Close'].rolling(window = self.short_window).mean()
         self.data['SMA_long'] = self.data['Close'].rolling(window = self.long_window).mean()
         # Drop initial NaN rows introduced by rolling windows
         self.data = self.data.dropna()
+
+        if self.data.empty:
+            raise ValueError(
+                f"Not enough data to compute a {self.short_window}/{self.long_window} moving-average backtest."
+            )
 
         # 1 when short SMA is above long SMA, otherwise 0
         self.data['Signal'] = np.where(self.data['SMA_short'] > self.data['SMA_long'], 1, 0)
@@ -97,6 +109,9 @@ class MABacktester:
 
     def print_performance(self):
         """Print final percentage returns for market and strategy."""
+        if self.data is None or self.data.empty:
+            raise ValueError("No backtest results available to print.")
+
         market_return = (self.data['Cumulative_Market'].iloc[-1] - 1) * 100
         strategy_return = (self.data['Cumulative_Strategy'].iloc[-1] - 1) * 100
         print(f"\n===== Backtesting Results for {self.ticker} (Average Line {self.short_window} & {self.long_window}) =====")
@@ -105,6 +120,9 @@ class MABacktester:
 
     def plot_performance(self):
         """Plot cumulative performance of market vs. strategy (including trading costs)."""
+        if self.data is None or self.data.empty:
+            raise ValueError("No backtest results available to plot.")
+
         # Visualize the cumulative returns over time to compare strategy vs. buy-and-hold benchmark
         plt.figure(figsize = (10, 6))
         # Buy-and-hold benchmark (dashed blue line)
@@ -119,21 +137,40 @@ class MABacktester:
         plt.show()
 
 if __name__ == "__main__":
-
-    # 1. Create an argument parser to allow command-line input for ticker, short SMA, long SMA, and period
     parser = argparse.ArgumentParser(description="Simple Moving Average Backtester")
-
-    # 2. Define command-line arguments with default values and help descriptions
-    parser.add_argument("--ticker", type = str, default = "APPL", help = "Ticker symbol (default: AAPL)")
+    parser.add_argument("--ticker", type = str, default = "", help = "Ticker symbol to analyze")
     parser.add_argument("--short", type = int, default = 10, help = "Short SMA window (default: 10)")
     parser.add_argument("--long", type = int, default = 50, help = "Long SMA window (default: 50)")
+    parser.add_argument("--period", type = str, default = "1y", help = "Price history period (default: 1y)")
 
-    # 3. Parse the command-line arguments into the `args` namespace
     args = parser.parse_args()
 
-    # 4. Print the backtest configuration and run the backtester
-    print(f"Running backtest for {args.ticker} with short SMA = {args.short} and long SMA = {args.long}... \n")
-    tester = MABacktester(ticker = args.ticker, short_window = args.short, long_window = args.long)
-    tester.fetch_data()
-    tester.run_backtest()
-    tester.print_performance()
+    print("Interactive MA backtester")
+    print("Enter a stock ticker to analyze. Press Enter on an empty prompt to quit.\n")
+
+    current_ticker = args.ticker
+    while True:
+        if not current_ticker:
+            current_ticker = input("Which stock would you like to analyze? (press Enter to exit): ").strip().lstrip("\ufeff").upper()
+            if not current_ticker:
+                break
+
+        print(f"\nRunning backtest for {current_ticker} with short SMA = {args.short} and long SMA = {args.long}...\n")
+        tester = MABacktester(
+            ticker = current_ticker,
+            short_window = args.short,
+            long_window = args.long,
+            period = args.period,
+        )
+
+        try:
+            tester.fetch_data()
+            tester.run_backtest()
+            tester.print_performance()
+            tester.plot_performance()
+        except ValueError as error:
+            print(f"Error: {error}\n")
+
+        current_ticker = input("What stock would you like to analyze next? (press Enter to exit): ").strip().lstrip("\ufeff").upper()
+        if not current_ticker:
+            break
